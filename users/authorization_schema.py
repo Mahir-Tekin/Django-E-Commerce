@@ -15,7 +15,7 @@ class UserType(graphene.ObjectType):
 class UserQuery(graphene.ObjectType):
     """Kullanıcı bilgilerini döndüren sorgu."""
     me = graphene.Field(UserType)
-
+    
     def resolve_me(self, info):
         user = info.context.user  
         if user.is_anonymous:
