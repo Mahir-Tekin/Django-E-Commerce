@@ -5,7 +5,7 @@ from graphene_django.filter import DjangoFilterConnectionField
 import django_filters
 
 from django.utils.text import slugify
-from datetime import datetime
+from django.utils import timezone
 
 from users.decorators import login_required, admin_required
 from .models import Product, ProductItem, VariationOption
@@ -44,10 +44,6 @@ class ProductNode(DjangoObjectType):
 
     @classmethod
     def get_queryset(cls, queryset, info):
-        """
-        Normal kullanıcılar is_active=False ürünleri göremez.
-        Admin kullanıcılar tüm ürünleri görebilir.
-        """
         user = info.context.user
         if not (user.is_authenticated and user.is_superuser):
             queryset = queryset.filter(is_active=True)
@@ -108,11 +104,7 @@ class VariationOptionNode(DjangoObjectType):
 
 
 class ProductItemInput(graphene.InputObjectType):
-    """
-    Relay'de Mutation'lar için genellikle
-    ClientIDMutation kullanılır; Input class
-    bu örnekte gösterilmiştir.
-    """
+
     id = graphene.ID(required=False)  # Güncelleme için
     name = graphene.String(required=True)
     price = graphene.Float(required=True)
@@ -150,33 +142,44 @@ class CreateProduct(relay.ClientIDMutation):
         if not items:
             raise Exception("At least one product item must be provided.")
 
-        product = Product.objects.create(
-            name=name,
-            description=description,
-            category_id=category_id,
-            slug=slugify(name),
-            created_at=datetime.now(),
-            is_active=is_active
-        )
+        try:
+            # Generate a unique slug
+            base_slug = slugify(name)
+            slug = base_slug
+            counter = 1
+            while Product.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+
+            product = Product.objects.create(
+                name=name,
+                description=description,
+                category_id=category_id,
+                slug=slug,
+                created_at=timezone.now(),
+                is_active=is_active
+            )
+        except Exception as e:
+            raise Exception(f"Error creating product: {str(e)}")
 
         for item in items:
-            # ID olmadan geliyor, yeni oluşturulacak demektir
-            item_is_active = item.get("is_active", True)
-            product_item = ProductItem.objects.create(
-                product=product,
-                name=item["name"],
-                price=item["price"],
-                stock=item["stock"],
-                sku=item["sku"],
-                is_active=item_is_active
-            )
+            try:
+                # It comes without an ID, meaning it will be newly created
+                item_is_active = item.get("is_active", True)
+                product_item = ProductItem.objects.create(
+                    product=product,
+                    name=item["name"],
+                    price=item["price"],
+                    stock=item["stock"],
+                    sku=item["sku"],
+                    is_active=item_is_active
+                )
 
-            if item.get("variation_option_ids"):
-                variation_ids = [
-                    relay.Node.from_global_id(vid)[1] for vid in item["variation_option_ids"]
-                ]
-                variation_options = VariationOption.objects.filter(id__in=variation_ids)
-                product_item.variation_options.set(variation_options)
+                if item.get("variation_option_ids"):
+                    variation_options = VariationOption.objects.filter(id__in=item["variation_option_ids"])
+                    product_item.variation_options.set(variation_options)
+            except Exception as e:
+                raise Exception(f"Error creating product item: {str(e)}")
 
         return CreateProduct(product=product)
 

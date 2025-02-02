@@ -17,8 +17,10 @@ class Query(graphene.ObjectType):
     # Category queries
     categories = inventory.category_schema.Query.categories
     category = inventory.category_schema.Query.category
+    top_categories = inventory.category_schema.Query.top_categories
     resolve_categories = inventory.category_schema.Query.resolve_categories
     resolve_category = inventory.category_schema.Query.resolve_category
+    resolve_top_categories = inventory.category_schema.Query.resolve_top_categories
 
     # Product queries (Relay style)
     all_products = DjangoFilterConnectionField(inventory.product_schema.ProductNode)

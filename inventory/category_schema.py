@@ -12,7 +12,8 @@ class CategoryType(DjangoObjectType):
 
 class Query(graphene.ObjectType):
     categories = graphene.List(CategoryType)  
-    category = graphene.Field(CategoryType, id=graphene.Int(required=True)) 
+    category = graphene.Field(CategoryType, id=graphene.Int(required=True))
+    top_categories = graphene.List(CategoryType)
 
     def resolve_categories(self, info):
         return Category.objects.all()
@@ -22,6 +23,9 @@ class Query(graphene.ObjectType):
             return Category.objects.get(pk=id)
         except Category.DoesNotExist:
             return None
+
+    def resolve_top_categories(self, info):
+        return Category.objects.filter(parent__isnull=True)
 
 
 class CreateCategory(graphene.Mutation):
@@ -39,7 +43,6 @@ class CreateCategory(graphene.Mutation):
         return CreateCategory(category=category)
 
 class UpdateCategory(graphene.Mutation):
-    print("lol")
     class Arguments:
         id = graphene.Int(required=True)  
         name = graphene.String(required=False)  
@@ -52,9 +55,7 @@ class UpdateCategory(graphene.Mutation):
         
         try:
             category = Category.objects.get(pk=id)
-            print("lol")
         except Category.DoesNotExist:
-            print("lol2")
             raise Exception("Category with the given ID does not exist.")
 
         if parent_id:
